@@ -35,10 +35,8 @@ exports.updateProfilePicture = async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
+};
 
-  // ... (fungsi updateUsername & updateProfilePicture biarin aja) ...
-
-// 🔴 TAMBAHIN FUNGSI INI DI PALING BAWAH
 exports.getUserLogs = async (req, res) => {
   try {
     const uid = req.user.uid;
@@ -66,5 +64,4 @@ exports.getUserLogs = async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
-};
 };
