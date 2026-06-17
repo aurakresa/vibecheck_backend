@@ -1,19 +1,28 @@
 const express = require('express');
 const cors = require('cors');
-const userRoutes = require('../src/routes/userRoutes');
+
+// 🔴 IMPORT RUTENYA PAKE TITIK SATU (Karena index.js ada di luar folder src)
+const userRoutes = require('./src/routes/userRoutes'); 
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// Health check endpoint
+// 🔴 HALAMAN DEPAN BIAR GAK 404
+app.get('/', (req, res) => {
+    res.send('<h1>VIBECHECK_OS BACKEND IS RUNNING 🚀</h1><p>Semua sistem normal dan siap menerima request!</p>');
+});
+
+// Health check endpoint (Bisa lu tes di /api/status)
 app.get('/api/status', (req, res) => {
   res.status(200).json({ success: true, message: 'VibeCheck Backend is Live!' });
 });
 
+// Panggil rute dari src/routes/userRoutes.js
 app.use('/api/users', userRoutes);
 
+// Jalankan server di lokal kalau nggak lagi di Vercel
 if (process.env.NODE_ENV !== 'production') {
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
@@ -21,5 +30,5 @@ if (process.env.NODE_ENV !== 'production') {
     });
 }
 
-// Export module untuk Vercel
+// WAJIB ADA BUAT VERCEL
 module.exports = app;
