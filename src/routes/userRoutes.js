@@ -6,5 +6,6 @@ const { updateUsername, updateProfilePicture } = require('../controllers/userCon
 // Terapkan middleware satpam ke endpoint ini
 router.put('/username', verifyFirebaseToken, updateUsername);
 router.put('/profile-picture', verifyFirebaseToken, updateProfilePicture);
+router.get('/logs', verifyFirebaseToken, getUserLogs);
 
 module.exports = router;

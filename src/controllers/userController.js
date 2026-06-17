@@ -35,4 +35,36 @@ exports.updateProfilePicture = async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
+
+  // ... (fungsi updateUsername & updateProfilePicture biarin aja) ...
+
+// 🔴 TAMBAHIN FUNGSI INI DI PALING BAWAH
+exports.getUserLogs = async (req, res) => {
+  try {
+    const uid = req.user.uid;
+
+    // Narik 20 log terakhir punya user ini dari Firestore
+    const logsSnapshot = await db.collection('user_logs')
+      .where('uid', '==', uid)
+      .orderBy('timestamp', 'desc')
+      .limit(20)
+      .get();
+
+    const logs = [];
+    logsSnapshot.forEach(doc => {
+      const data = doc.data();
+      logs.push({
+        id: doc.id,
+        action: data.action,
+        details: data.details,
+        // Convert timestamp ke ISO string biar gampang dibaca di Android
+        timestamp: data.timestamp.toDate().toISOString() 
+      });
+    });
+
+    res.status(200).json({ success: true, message: 'Logs retrieved', data: logs });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
 };
