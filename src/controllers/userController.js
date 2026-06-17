@@ -65,3 +65,22 @@ exports.getUserLogs = async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
+
+exports.addClientLog = async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const { action, details } = req.body;
+    
+    // Panggil helper logUserActivity yang udah kita bikin sebelumnya
+    await db.collection('user_logs').add({ 
+        uid: uid, 
+        action: action, 
+        details: details, 
+        timestamp: new Date() 
+    });
+    
+    res.status(200).json({ success: true, message: 'Client log saved successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
