@@ -4,7 +4,6 @@ const { db, admin } = require('../config/firebase');
 exports.trackActivity = async (req, res) => {
   try {
     const uid = req.user.uid;
-    // Android bakal ngirim 'type' (shutter/p2p/frame/filter) dan 'subtype' (cyan/2x2/dll)
     const { type, subtype } = req.body; 
 
     if (!type) {
@@ -14,27 +13,35 @@ exports.trackActivity = async (req, res) => {
     const docRef = db.collection('telemetry_stats').doc(uid);
     const increment = admin.firestore.FieldValue.increment(1);
     
-    // Objek ini bakal nambahin angka tanpa nimpa data yang udah ada
     let updateData = { updatedAt: new Date() };
 
     switch (type) {
       case 'shutter':
-        updateData['purikura_shutter_count'] = increment;
+        updateData.purikura_shutter_count = increment;
         break;
       case 'p2p':
-        updateData['p2p_connect_count'] = increment;
+        updateData.p2p_connect_count = increment;
         break;
       case 'frame':
-        if (subtype) updateData[`frames.${subtype}`] = increment; // Nambah spesifik ke tipe framenya
+        if (subtype) {
+          // 🔴 Bikin jadi Nested Object (Map) biar dibaca Android!
+          updateData.frames = {};
+          updateData.frames[subtype] = increment; 
+        }
         break;
       case 'filter':
-        if (subtype) updateData[`filters.${subtype}`] = increment; // Nambah spesifik ke tipe filternya
+        if (subtype) {
+          // 🔴 Bikin jadi Nested Object (Map) biar dibaca Android!
+          updateData.filters = {};
+          updateData.filters[subtype] = increment;
+        }
         break;
       default:
         return res.status(400).json({ success: false, message: 'Unknown activity type' });
     }
 
-    // Pakai merge: true biar kalau dokumennnya belum ada, dibikinin otomatis
+    // Dengan merge: true, Firebase bakal ngegabungin isi Map dengan aman 
+    // tanpa numpuk/ngapus filter lain yang udah ada.
     await docRef.set(updateData, { merge: true });
 
     res.status(200).json({ success: true, message: `Telemetry [${type}] logged` });
@@ -49,8 +56,12 @@ exports.getTelemetryData = async (req, res) => {
     const uid = req.user.uid;
     const doc = await db.collection('telemetry_stats').doc(uid).get();
 
+    // 🔴 Paksa Anti-Cache biar angka di HP gerak real-time!
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
     if (!doc.exists) {
-      // Kalau user baru dan belum ngapa-ngapain, balikin angka nol semua
       return res.status(200).json({
         success: true,
         data: {
