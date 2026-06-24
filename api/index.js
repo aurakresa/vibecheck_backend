@@ -1,8 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 
-// 🔴 PERUBAHAN: Pake titik dua (../) karena file ini sekarang di dalam folder /api
 const userRoutes = require('../src/routes/userRoutes'); 
+// 🔴 INI BARIS YANG KETINGGALAN KEMARIN COY:
+const telemetryRoutes = require('../src/routes/telemetryRoutes');
 
 const app = express();
 
@@ -19,9 +20,8 @@ app.get('/api/status', (req, res) => {
   res.status(200).json({ success: true, message: 'VibeCheck Backend is Live!' });
 });
 
-// Panggil rute users
+// Panggil rute
 app.use('/api/users', userRoutes);
-
 app.use('/api/telemetry', telemetryRoutes);
 
 // Jalankan server di lokal
