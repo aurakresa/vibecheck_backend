@@ -22,6 +22,8 @@ app.get('/api/status', (req, res) => {
 // Panggil rute users
 app.use('/api/users', userRoutes);
 
+app.use('/api/telemetry', telemetryRoutes);
+
 // Jalankan server di lokal
 if (process.env.NODE_ENV !== 'production') {
     const PORT = process.env.PORT || 3000;
