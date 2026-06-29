@@ -30,6 +30,7 @@ exports.runDataPipeline = async (req, res) => {
         channel: video.author.name,
         views: video.views,
         duration: video.timestamp,
+        url: video.url, // 🔴 INI YANG KITA TAMBAHIN!
         scraped_at: scrapeTime
     }));
 
