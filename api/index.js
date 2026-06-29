@@ -2,8 +2,8 @@ const express = require('express');
 const cors = require('cors');
 
 const userRoutes = require('../src/routes/userRoutes'); 
-// 🔴 INI BARIS YANG KETINGGALAN KEMARIN COY:
 const telemetryRoutes = require('../src/routes/telemetryRoutes');
+const cronRoutes = require('../src/routes/cronRoutes');
 
 const app = express();
 
@@ -23,6 +23,7 @@ app.get('/api/status', (req, res) => {
 // Panggil rute
 app.use('/api/users', userRoutes);
 app.use('/api/telemetry', telemetryRoutes);
+app.use('/api/external', cronRoutes);
 
 // Jalankan server di lokal
 if (process.env.NODE_ENV !== 'production') {
