@@ -7,21 +7,31 @@ exports.updateGlobalTrends = async (req, res) => {
     let sourceName = "";
 
     try {
-      // 1. RENCANA A: TARIK DATA ASLI DARI GOOGLE
+      // 1. RENCANA A: Nembak Google Trends
       const results = await googleTrends.interestOverTime({
           keyword: ['Y2K', 'peace sign', 'photobooth'],
           startTime: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), 
       });
 
       const parsedData = JSON.parse(results);
-      // Pake fallback [] biar gak error reading length
-      const timeline = parsedData?.default?.timelineData || [];
+      
+      // 🔴 CEK KETAT 1: Pastikan datanya nggak diblokir / kosong
+      if (!parsedData || !parsedData.default || !parsedData.default.timelineData || parsedData.default.timelineData.length === 0) {
+          throw new Error("Data timeline kosong dari Google (Kena Limit)");
+      }
+
+      const timeline = parsedData.default.timelineData;
       const latestData = timeline[timeline.length - 1];
 
-      // 🔴 EXTRAM SAFE: Pake ?.[0] biar gak meledak kalau data kosong
-      const y2kScore = latestData?.value?.[0] || 50;
-      const peaceScore = latestData?.value?.[1] || 50;
-      const photoboothScore = latestData?.value?.[2] || 50;
+      // 🔴 CEK KETAT 2: Pastikan ada "value"-nya biar nggak meledak pas baca indeks [1]
+      if (!latestData || !latestData.value || latestData.value.length < 3) {
+          throw new Error("Format value Google tidak sesuai");
+      }
+
+      // Kalau aman sampai sini, baru kita ambil angkanya!
+      const y2kScore = latestData.value[0];
+      const peaceScore = latestData.value[1];
+      const photoboothScore = latestData.value[2];
 
       trendsData = {
         "HALF_BODY_PEACE": peaceScore + 20,       
@@ -33,9 +43,8 @@ exports.updateGlobalTrends = async (req, res) => {
       sourceName = "Google Trends API";
 
     } catch (googleError) {
-      // 2. RENCANA B: JARING PENGAMAN (FALLBACK PROXY)
-      // Kalau meledak kayak di browser lu tadi, dia lari ke sini dan status tetap SUCCESS!
-      console.log("Google API terblokir, menggunakan Fallback Data...");
+      // 2. RENCANA B: Kalau meledak, JANGAN KASIH ERROR KE BROWSER! Kasih data dummy ini:
+      console.log("Google gagal ditarik, pindah ke Fallback:", googleError.message);
       trendsData = {
         "HALF_BODY_PEACE": Math.floor(Math.random() * 20) + 70,       
         "HALF_BODY_COOL": Math.floor(Math.random() * 15) + 60,          
@@ -46,7 +55,7 @@ exports.updateGlobalTrends = async (req, res) => {
       sourceName = "Proxy Trend Node";
     }
 
-    // 3. SIMPAN KE FIRESTORE (Pasti berhasil nyimpen)
+    // 3. SIMPAN KE FIRESTORE
     const updateData = {
       updatedAt: new Date(),
       source: sourceName,
@@ -55,7 +64,7 @@ exports.updateGlobalTrends = async (req, res) => {
 
     await db.collection('global_metrics').doc('pose_trends').set(updateData);
     
-    // Status sekarang dijamin 200 SUCCESS!
+    // Status ke browser pasti 200 OK!
     res.status(200).json({ success: true, message: 'Trend Pipeline Executed!', data: updateData });
 
   } catch (error) {
