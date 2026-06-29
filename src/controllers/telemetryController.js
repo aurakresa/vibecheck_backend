@@ -63,20 +63,35 @@ exports.trackActivity = async (req, res) => {
   }
 };
 
+// [GET] Endpoint buat ngambil data buat digambar jadi Chart di Android
 exports.getTelemetryData = async (req, res) => {
-  // Biarkan sama seperti sebelumnya untuk mengambil data Grand Total.
-  // Untuk mengambil data Shutter/P2P bulanan, Android akan menembak endpoint baru atau langsung query sub-collection.
-  // (Lebih baik Android langsung tarik sub-collection shutter_logs/p2p_logs via Firebase Android SDK untuk efisiensi).
   try {
     const uid = req.user.uid;
-    const doc = await db.collection('telemetry_stats').doc(uid).get();
+    
+    // Siapkan format bulan ini (contoh: "2026-06") untuk narik bucket terbaru
+    const now = new Date();
+    const monthId = now.toISOString().slice(0, 7);
 
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    if (!doc.exists) {
-      return res.status(200).json({ success: true, data: { purikura_shutter_count: 0, p2p_connect_count: 0, frames: {}, filters: {} } });
-    }
-    res.status(200).json({ success: true, data: doc.data() });
+    // 1. Ambil Data Grand Total
+    const doc = await db.collection('telemetry_stats').doc(uid).get();
+    let responseData = doc.exists ? doc.data() : { purikura_shutter_count: 0, p2p_connect_count: 0, frames: {}, filters: {} };
+
+    // 2. Ambil Array Timestamp Shutter Bulan Ini
+    const shutterDoc = await db.collection('telemetry_stats').doc(uid).collection('shutter_logs').doc(monthId).get();
+    responseData.shutter_logs = shutterDoc.exists ? shutterDoc.data().events : [];
+
+    // 3. Ambil Array Timestamp P2P Bulan Ini
+    const p2pDoc = await db.collection('telemetry_stats').doc(uid).collection('p2p_logs').doc(monthId).get();
+    responseData.p2p_logs = p2pDoc.exists ? p2pDoc.data().events : [];
+
+    // 🔴 Paksa Anti-Cache biar angka di HP gerak real-time!
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    // Kirim JSON lengkap ke Android (Cocok 100% dengan DTO baru)
+    res.status(200).json({ success: true, data: responseData });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
