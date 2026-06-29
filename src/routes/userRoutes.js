@@ -1,11 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const { runDataPipeline, getMarketData } = require('../controllers/cronController');
+const verifyFirebaseToken = require('../middlewares/auth');
 
-// URL buat robot Vercel (Cron)
-router.get('/pipeline', runDataPipeline);
+// 🔴 Pastiin addClientLog ikut di-import
+const { updateUsername, updateProfilePicture, getUserLogs, addClientLog } = require('../controllers/userController');
 
-// URL buat diakses HP Android
-router.get('/market-data', getMarketData);
+// Daftar rute
+router.put('/username', verifyFirebaseToken, updateUsername);
+router.put('/profile-picture', verifyFirebaseToken, updateProfilePicture);
+router.get('/logs', verifyFirebaseToken, getUserLogs);
+
+// 🔴 TAMBAHIN RUTE POST INI
+router.post('/logs', verifyFirebaseToken, addClientLog);
 
 module.exports = router;

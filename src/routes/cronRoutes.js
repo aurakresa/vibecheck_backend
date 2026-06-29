@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { updateGlobalTrends, getGlobalTrends, runDataPipeline } = require('../controllers/cronController');
+const { runDataPipeline, getMarketData } = require('../controllers/cronController');
 
-// Route lama lu (Google Trends)
-router.get('/scrape', updateGlobalTrends);
-router.get('/trends', getGlobalTrends);
-
-// 🔴 Route BARU buat Pipeline Wiki & YouTube
+// URL buat robot Vercel (Cron)
 router.get('/pipeline', runDataPipeline);
+
+// URL buat diakses HP Android
+router.get('/market-data', getMarketData);
 
 module.exports = router;
