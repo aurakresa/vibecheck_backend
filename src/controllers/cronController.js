@@ -1,87 +1,78 @@
 const { db } = require('../config/firebase');
-const googleTrends = require('google-trends-api');
+const axios = require('axios');
+const ytSearch = require('yt-search');
 
-exports.updateGlobalTrends = async (req, res) => {
-  try {
-    let trendsData = {};
-    let sourceName = "";
-
+exports.runDataPipeline = async (req, res) => {
     try {
-      // 1. RENCANA A: Nembak Google Trends
-      const results = await googleTrends.interestOverTime({
-          keyword: ['Y2K', 'peace sign', 'photobooth'],
-          startTime: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), 
-      });
+        console.log("🚀 STARTING VIBECHECK DATA PIPELINE...");
+        const scrapeTime = new Date();
 
-      const parsedData = JSON.parse(results);
-      
-      // 🔴 CEK KETAT 1: Pastikan datanya nggak diblokir / kosong
-      if (!parsedData || !parsedData.default || !parsedData.default.timelineData || parsedData.default.timelineData.length === 0) {
-          throw new Error("Data timeline kosong dari Google (Kena Limit)");
-      }
+        // ==========================================
+        // 1. EXTRACT & TRANSFORM WIKIPEDIA
+        // ==========================================
+        const keywordsWiki = ["Digital_camera", "Y2K_aesthetic", "Computational_photography", "Photographic_filter"];
+        let wikiTrends = {};
 
-      const timeline = parsedData.default.timelineData;
-      const latestData = timeline[timeline.length - 1];
-
-      // 🔴 CEK KETAT 2: Pastikan ada "value"-nya biar nggak meledak pas baca indeks [1]
-      if (!latestData || !latestData.value || latestData.value.length < 3) {
-          throw new Error("Format value Google tidak sesuai");
-      }
-
-      // Kalau aman sampai sini, baru kita ambil angkanya!
-      const y2kScore = latestData.value[0];
-      const peaceScore = latestData.value[1];
-      const photoboothScore = latestData.value[2];
-
-      trendsData = {
-        "HALF_BODY_PEACE": peaceScore + 20,       
-        "HALF_BODY_COOL": y2kScore + 15,          
-        "FULL_BODY_WIDE": photoboothScore + 10,   
-        "HALF_BODY_FRAME": Math.round((y2kScore + photoboothScore) / 2),
-        "FULL_BODY_ACTION": Math.round(y2kScore * 0.8)
-      };
-      sourceName = "Google Trends API";
-
-    } catch (googleError) {
-      // 2. RENCANA B: Kalau meledak, JANGAN KASIH ERROR KE BROWSER! Kasih data dummy ini:
-      console.log("Google gagal ditarik, pindah ke Fallback:", googleError.message);
-      trendsData = {
-        "HALF_BODY_PEACE": Math.floor(Math.random() * 20) + 70,       
-        "HALF_BODY_COOL": Math.floor(Math.random() * 15) + 60,          
-        "FULL_BODY_WIDE": Math.floor(Math.random() * 25) + 65,   
-        "HALF_BODY_FRAME": 55,
-        "FULL_BODY_ACTION": 45
-      };
-      sourceName = "Proxy Trend Node";
-    }
-
-    // 3. SIMPAN KE FIRESTORE
-    const updateData = {
-      updatedAt: new Date(),
-      source: sourceName,
-      trends: trendsData
-    };
-
-    await db.collection('global_metrics').doc('pose_trends').set(updateData);
-    
-    // Status ke browser pasti 200 OK!
-    res.status(200).json({ success: true, message: 'Trend Pipeline Executed!', data: updateData });
-
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-};
-
-exports.getGlobalTrends = async (req, res) => {
-    try {
-        const doc = await db.collection('global_metrics').doc('pose_trends').get();
-        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-        
-        if (!doc.exists) {
-            return res.status(200).json({ success: true, data: { source: "AWAITING_CRON", trends: {} } });
+        for (const keyword of keywordsWiki) {
+            try {
+                // Ambil data sebulan terakhir saja biar cepat
+                const url = `https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/${keyword}/monthly/2026050100/2026060100`;
+                const response = await axios.get(url, {
+                    headers: { "User-Agent": "VibeCheck_Data_Project/1.0 (student_project)" }
+                });
+                
+                // Ambil total views bulan terakhir
+                const items = response.data.items;
+                const lastMonthViews = items[items.length - 1].views;
+                wikiTrends[keyword] = lastMonthViews;
+            } catch (err) {
+                console.log(`❌ Gagal tarik Wiki: ${keyword}`);
+                wikiTrends[keyword] = 0; // Fallback
+            }
         }
-        res.status(200).json({ success: true, data: doc.data() });
+
+        // ==========================================
+        // 2. EXTRACT & TRANSFORM YOUTUBE
+        // ==========================================
+        const ytSearchQuery = "tren edit foto filter aesthetic viral";
+        console.log(`🔍 Mencari video YouTube terpopuler: '${ytSearchQuery}'`);
+        
+        const ytResults = await ytSearch(ytSearchQuery);
+        // Ambil top 10 video aja biar enteng di HP
+        const topVideos = ytResults.videos.slice(0, 10).map(video => ({
+            title: video.title,
+            channel: video.author.name,
+            views: video.views,
+            duration: video.timestamp,
+            scraped_at: scrapeTime
+        }));
+
+        // ==========================================
+        // 3. LOAD (SIMPAN KE FIRESTORE)
+        // ==========================================
+        // Simpan Wiki ke dokumen khusus
+        await db.collection('bigdata_market').doc('wiki_trends').set({
+            updatedAt: scrapeTime,
+            data: wikiTrends
+        });
+
+        // Simpan YouTube ke dokumen khusus
+        await db.collection('bigdata_market').doc('youtube_trends').set({
+            updatedAt: scrapeTime,
+            top_videos: topVideos
+        });
+
+        console.log("☁️ SUKSES! Data Wiki & YouTube tersimpan di Firestore.");
+
+        res.status(200).json({
+            success: true,
+            message: "Data Pipeline Selesai",
+            wiki_data: wikiTrends,
+            yt_data: topVideos.length
+        });
+
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, error: error.message });
     }
 };

@@ -6,10 +6,12 @@
     "start": "node api/index.js"
   },
   "dependencies": {
+    "axios": "^1.18.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "firebase-admin": "^13.10.0",
-    "google-trends-api": "^4.9.2"
+    "google-trends-api": "^4.9.2",
+    "yt-search": "^2.13.1"
   }
 }
