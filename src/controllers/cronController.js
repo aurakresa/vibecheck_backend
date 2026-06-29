@@ -23,7 +23,7 @@ exports.runDataPipeline = async (req, res) => {
     }
 
     // B. EKSTRAK YOUTUBE
-    const ytSearchQuery = "tren edit foto filter aesthetic viral";
+    const ytSearchQuery = "photo pose ideas";
     const ytResults = await ytSearch(ytSearchQuery);
     const topVideos = ytResults.videos.slice(0, 10).map(video => ({
         title: video.title,
