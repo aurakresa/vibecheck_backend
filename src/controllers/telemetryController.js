@@ -1,3 +1,5 @@
+// src/controllers/telemetryController.js
+
 const { db, admin } = require('../config/firebase');
 
 exports.trackActivity = async (req, res) => {
@@ -8,22 +10,17 @@ exports.trackActivity = async (req, res) => {
     if (!type) return res.status(400).json({ success: false, message: 'Type is required' });
 
     const now = new Date();
-    // Bikin format "YYYY-MM" untuk nama dokumen Bucket
     const monthId = now.toISOString().slice(0, 7); 
-    // Format timestamp akurat untuk isi Array
     const fullTimestamp = now.toISOString();
 
     const batch = db.batch();
     const mainDocRef = db.collection('telemetry_stats').doc(uid);
 
-    // 1. Update Dokumen Utama (Untuk Grand Total & Chart Filter Tone Warna)
     let mainUpdateData = { updatedAt: now };
 
-    // 2. Routing Data Berdasarkan Tipe
     if (type === 'shutter') {
       mainUpdateData.purikura_shutter_count = admin.firestore.FieldValue.increment(1);
       
-      // Masukkan ke Array Bucket Shutter
       const shutterRef = mainDocRef.collection('shutter_logs').doc(monthId);
       batch.set(shutterRef, {
         period: monthId,
@@ -33,7 +30,6 @@ exports.trackActivity = async (req, res) => {
     } else if (type === 'p2p') {
       mainUpdateData.p2p_connect_count = admin.firestore.FieldValue.increment(1);
       
-      // Masukkan ke Array Bucket P2P
       const p2pRef = mainDocRef.collection('p2p_logs').doc(monthId);
       batch.set(p2pRef, {
         period: monthId,
@@ -42,18 +38,22 @@ exports.trackActivity = async (req, res) => {
 
     } else if (type === 'filter') {
       if (subtype) {
-        // Dot notation update untuk Map di Firestore
-        mainUpdateData[`filters.${subtype}`] = admin.firestore.FieldValue.increment(1);
+        // 🔥 FIX: Gunakan struktur Object eksplisit agar Firestore melakukan deep-merge pada Map
+        mainUpdateData.filters = {
+            [subtype]: admin.firestore.FieldValue.increment(1)
+        };
       }
     } else if (type === 'frame') {
       if (subtype) {
-        mainUpdateData[`frames.${subtype}`] = admin.firestore.FieldValue.increment(1);
+        // 🔥 FIX: Gunakan struktur Object eksplisit 
+        mainUpdateData.frames = {
+            [subtype]: admin.firestore.FieldValue.increment(1)
+        };
       }
     } else {
       return res.status(400).json({ success: false, message: 'Unknown activity type' });
     }
 
-    // Eksekusi semua perintah secara bersamaan (Batch)
     batch.set(mainDocRef, mainUpdateData, { merge: true });
     await batch.commit();
 
