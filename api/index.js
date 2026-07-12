@@ -18,18 +18,19 @@ app.use(express.json());
 // 1. Muat dokumen Swagger YAML
 const swaggerDocument = YAML.load(path.join(__dirname, '../swagger.yaml'));
 
-// 2. Gunakan CDN CSS untuk mencegah blank screen (layar putih) di Vercel
+// 2. PERBAIKAN VERCEL FINAL: Gunakan CDN untuk CSS DAN JavaScript 
 const CSS_URL = "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.3.0/swagger-ui.min.css";
+const customOptions = {
+    customCssUrl: CSS_URL,
+    customJs: [
+        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.3.0/swagger-ui-bundle.min.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.3.0/swagger-ui-standalone-preset.min.js"
+    ],
+    customSiteTitle: "VibeCheck API Docs"
+};
 
-// 3. Terapkan Swagger UI dengan opsi customCssUrl
-app.use(
-    '/api-docs', 
-    swaggerUi.serve, 
-    swaggerUi.setup(swaggerDocument, {
-        customCssUrl: CSS_URL,
-        customSiteTitle: "VibeCheck API Docs"
-    })
-);
+// 3. Terapkan Swagger UI dengan opsi custom yang memuat CDN
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, customOptions));
 
 app.get('/', (req, res) => {
     res.send('<h1>VIBECHECK_OS BACKEND IS RUNNING 🚀</h1><p>Semua sistem normal dan siap menerima request!</p><br><p>📚 Buka <a href="/api-docs">/api-docs</a> untuk dokumentasi API.</p>');
