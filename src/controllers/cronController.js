@@ -2,14 +2,12 @@ const { db } = require('../config/firebase');
 const axios = require('axios');
 const ytSearch = require('yt-search');
 
-// [POST/GET] - Robot Narik Data dari Luar (Jalan Jam 12 Malem)
 exports.runDataPipeline = async (req, res) => {
   try {
     console.log("🚀 STARTING VIBECHECK DATA PIPELINE (WIKI + YT)...");
     const scrapeTime = new Date();
     let wikiTrends = {};
 
-    // A. EKSTRAK WIKIPEDIA
     const keywordsWiki = ["Digital_camera", "Y2K_aesthetic", "Computational_photography", "Photographic_filter"];
     for (const keyword of keywordsWiki) {
         try {
@@ -22,7 +20,6 @@ exports.runDataPipeline = async (req, res) => {
         }
     }
 
-    // B. EKSTRAK YOUTUBE
     const ytSearchQuery = "photo pose ideas";
     const ytResults = await ytSearch(ytSearchQuery);
     const topVideos = ytResults.videos.slice(0, 10).map(video => ({
@@ -30,11 +27,10 @@ exports.runDataPipeline = async (req, res) => {
         channel: video.author.name,
         views: video.views,
         duration: video.timestamp,
-        url: video.url, // 🔴 INI YANG KITA TAMBAHIN!
+        url: video.url,
         scraped_at: scrapeTime
     }));
 
-    // C. SIMPAN KE FIRESTORE
     await db.collection('bigdata_market').doc('wiki_trends').set({ updatedAt: scrapeTime, data: wikiTrends });
     await db.collection('bigdata_market').doc('youtube_trends').set({ updatedAt: scrapeTime, top_videos: topVideos });
 
@@ -44,7 +40,6 @@ exports.runDataPipeline = async (req, res) => {
   }
 };
 
-// [GET] - Buat ditarik ke Dashboard Android Lu
 exports.getMarketData = async (req, res) => {
     try {
         const wikiDoc = await db.collection('bigdata_market').doc('wiki_trends').get();

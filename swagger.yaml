@@ -1,0 +1,268 @@
+openapi: 3.0.0
+info:
+  title: VibeCheck_OS Backend API
+  version: 1.0.0
+  description: |
+    Selamat datang di Dokumentasi API VibeCheck_OS Backend. 
+
+    ### 🏗️ Arsitektur Autentikasi & Keamanan
+    Project backend ini didesain menggunakan pola **Client-Side Authentication**. Backend ini **tidak menyediakan** endpoint `/login` atau `/register` internal. Proses autentikasi sepenuhnya didelegasikan kepada **Firebase Authentication**.
+
+    **Alur Kerja Integrasi:**
+    1. **Frontend/Client (Android)** melakukan login/registrasi langsung ke Firebase server menggunakan Firebase Client SDK.
+    2. Firebase akan mengembalikan **Firebase ID Token (JWT)** kepada Client jika login sukses.
+    3. Client wajib melampirkan token tersebut pada setiap request ke backend yang dilindungi melalui HTTP Header:  
+       `Authorization: Bearer <FIREBASE_ID_TOKEN>`
+    4. Middleware backend (`verifyFirebaseToken`) akan menangkap dan memverifikasi token tersebut secara real-time ke Firebase Admin SDK sebelum mengizinkan akses ke controller.
+
+    ---
+
+    ### 🔑 Panduan Mendapatkan Token untuk Testing (Swagger UI)
+    Untuk menguji endpoint yang memiliki ikon gembok 🔒 di dokumentasi ini, Anda memerlukan Firebase ID Token yang valid. Anda bisa mendapatkannya secara manual tanpa aplikasi Android menggunakan **Firebase Auth REST API**:
+
+    1. Dapatkan **Web API Key** proyek Firebase Anda (Buka Firebase Console -> Project Settings -> General).
+    2. Lakukan `POST` request menggunakan Postman, cURL, atau tools sejenis ke endpoint resmi Firebase berikut:
+       * **Method:** `POST`
+       * **URL:** `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=WEB_API_KEY_ANDA`
+       * **Headers:** `Content-Type: application/json`
+       * **Request Body (JSON):**
+         ```json
+         {
+           "email": "user-uji-coba@email.com",
+           "password": "passwordUser123",
+           "returnSecureToken": true
+         }
+         ```
+    3. Dari JSON Response yang dikembalikan oleh Firebase, salin nilai string panjang yang ada di dalam properti `"idToken"`.
+    4. Klik tombol **Authorize** (ikon gembok) di pojok kanan atas halaman Swagger ini, tempel (*paste*) token tersebut ke kolom yang disediakan, lalu klik **Authorize**.
+
+servers:
+  - url: http://localhost:3000
+    description: Local Development Server
+  - url: https://vibecheck-backend-url.vercel.app
+    description: Production Server (Vercel)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Masukkan Firebase ID Token Anda di sini (cukup tokennya saja, tanpa kata 'Bearer').
+
+tags:
+  - name: System
+    description: Endpoint untuk pengecekan status server
+  - name: Users
+    description: Manajemen profil dan log aktivitas pengguna
+  - name: Telemetry
+    description: Perekaman dan statistik aktivitas fitur
+  - name: External Data
+    description: Cron job dan penyerapan data pihak ketiga (Wikipedia, YouTube)
+
+paths:
+  # ==========================================
+  # SYSTEM ROUTES
+  # ==========================================
+  /api/status:
+    get:
+      tags:
+        - System
+      summary: Health check endpoint
+      description: Memeriksa apakah backend berjalan dengan normal.
+      responses:
+        '200':
+          description: Server is live
+          content:
+            application/json:
+              example:
+                success: true
+                message: "VibeCheck Backend is Live!"
+
+  # ==========================================
+  # USER ROUTES
+  # ==========================================
+  /api/users/username:
+    put:
+      tags:
+        - Users
+      summary: Update Username
+      description: Mengubah username pengguna saat ini di database Firestore.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+              properties:
+                username:
+                  type: string
+                  example: "aurakresa_new"
+      responses:
+        '200':
+          description: Username berhasil diupdate
+        '401':
+          description: Unauthorized (Token tidak valid/tidak ada)
+
+  /api/users/profile-picture:
+    put:
+      tags:
+        - Users
+      summary: Update Profile Picture
+      description: Sinkronisasi URL foto profil baru ke database Cloud Firestore.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - photoUrl
+              properties:
+                photoUrl:
+                  type: string
+                  example: "https://example.com/photo.jpg"
+      responses:
+        '200':
+          description: Foto profil berhasil diupdate
+        '401':
+          description: Unauthorized
+
+  /api/users/logs:
+    get:
+      tags:
+        - Users
+      summary: Get User Logs
+      description: Mengambil maksimal 20 riwayat log aktivitas teratas milik pengguna saat ini secara descending.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Berhasil mengambil data log aktivitas
+          content:
+            application/json:
+              example:
+                success: true
+                message: "Logs retrieved"
+                data: []
+    post:
+      tags:
+        - Users
+      summary: Add Client Log
+      description: Mencatat aktivitas keamanan spesifik (seperti SEC_LOGIN/SEC_LOGOUT) beserta informasi nama perangkat (deviceName). Jika aksi berupa login/logout perangkat, dokumen lama dengan nama perangkat yang sama akan ditimpa (merge) untuk menghindari duplikasi berlebih.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+              properties:
+                action:
+                  type: string
+                  example: "SEC_LOGIN"
+                details:
+                  type: string
+                  example: "Login berhasil dari perangkat Android"
+                deviceName:
+                  type: string
+                  example: "SAMSUNG_SM-A528B"
+      responses:
+        '200':
+          description: Client log berhasil disimpan atau diperbarui
+
+  # ==========================================
+  # TELEMETRY ROUTES
+  # ==========================================
+  /api/telemetry/track:
+    post:
+      tags:
+        - Telemetry
+      summary: Track User Activity
+      description: Endpoint background untuk mencatat metrik aktivitas telemetri secara real-time (seperti penekanan shutter purikura, koneksi p2p, penggunaan filter/frame).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+              properties:
+                type:
+                  type: string
+                  enum: [shutter, p2p, filter, frame]
+                  example: "filter"
+                subtype:
+                  type: string
+                  description: Wajib diisi jika tipe yang dipilih adalah 'filter' atau 'frame' (misal nama filternya).
+                  example: "vintage_y2k"
+      responses:
+        '200':
+          description: Telemetri berhasil dicatat ke dalam struktur data Firestore batch.
+        '400':
+          description: Bad request (Tipe aktivitas tidak dikenali atau parameter kurang)
+
+  /api/telemetry/stats:
+    get:
+      tags:
+        - Telemetry
+      summary: Get Telemetry Stats
+      description: Mengambil agregasi data telemetri bulanan pengguna untuk dirender menjadi grafik/chart di aplikasi Android. Endpoint ini dilengkapi header anti-cache agar data bergerak real-time.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Data grafik telemetri berhasil didapatkan
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  purikura_shutter_count: 15
+                  p2p_connect_count: 4
+                  frames: {}
+                  filters: {}
+                  shutter_logs: []
+                  p2p_logs: []
+
+  # ==========================================
+  # EXTERNAL DATA / CRON ROUTES
+  # ==========================================
+  /api/external/pipeline:
+    get:
+      tags:
+        - External Data
+      summary: Run Data Pipeline (Cron)
+      description: Endpoint yang dieksekusi oleh robot scheduler (Vercel Cron) setiap hari untuk melakukan scraping metrik pageviews Wikipedia dan tren pencarian video ide pose dari YouTube API, kemudian menyimpannya ke Firestore.
+      responses:
+        '200':
+          description: Proses scraping data tren pasar selesai dan berhasil diperbarui
+
+  /api/external/market-data:
+    get:
+      tags:
+        - External Data
+      summary: Get Market Data
+      description: Mengambil data hasil agregasi tren pasar terbaru (Wikipedia & YouTube) untuk ditampilkan pada menu dashboard analitik aplikasi.
+      responses:
+        '200':
+          description: Berhasil memuat data tren pasar
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  wiki_trends: {}
+                  youtube_trends: {}
